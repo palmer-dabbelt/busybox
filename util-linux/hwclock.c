@@ -137,10 +137,24 @@ static void set_kernel_tz(const struct timezone *tz)
 	 * because "it's deprecated by POSIX, therefore it's fine
 	 * if we gratuitously break stuff" :(
 	 */
-#if !defined(SYS_settimeofday) && defined(SYS_settimeofday_time32)
-# define SYS_settimeofday SYS_settimeofday_time32
-#endif
+# if !defined(SYS_settimeofday) && defined(SYS_settimeofday_time32)
+#  define SYS_settimeofday SYS_settimeofday_time32
+# endif
+# if defined(SYS_settimeofday)
 	int ret = syscall(SYS_settimeofday, NULL, tz);
+# else
+	/* Some new architectures have neither settimeofday nor
+	 * settimeofday_time32, and the whole kernel timezone handling appears
+	 * to have been dropped due to some oddities in the API.  See:
+	 *
+	 *   - glibc's commit c3f9aef063 ("Use clock_settime to implement settimeofday.")
+	 *   - https://github.com/systemd/systemd/issues/13305
+	 *   - https://inbox.sourceware.org/libc-alpha/cb015d0d1d29e4b948c7118c5b12ff2bed83a6ec.1561421042.git.alistair.francis@wdc.com/
+	 *
+	 * So instead just silently drop these calls.
+	 */
+	int ret = -ENOSYS;
+# endif
 #else
 	int ret = settimeofday(NULL, tz);
 #endif
